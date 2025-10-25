@@ -1,0 +1,9 @@
+{
+  "products": {
+    "cart": "Ajouter au panier"
+  },
+  "home": {
+    "title": "Bienvenue dans notre application",
+    "description": "Ceci est une application Next.js multilingue."
+  }
+}

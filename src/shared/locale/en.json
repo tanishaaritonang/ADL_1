@@ -1,0 +1,9 @@
+{
+  "products": {
+    "cart": "Add to Cart"
+  },
+  "home": {
+    "title": "Welcome to Our App",
+    "description": "This is a multilingual Next.js application."
+  }
+}
