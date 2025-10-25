@@ -45,26 +45,7 @@ export default function RegisterPage() {
 
     try {
       // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Simulate successful registration
-      toast("Account created successfully!", {
-        description: new Date().toLocaleDateString("en-US", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "numeric",
-          minute: "numeric",
-          hour12: true,
-        }),
-        action: {
-          label: "Undo",
-          onClick: () => console.log("Account creation undone"),
-        },
-      });
-
-      // Redirect to login
+      
       router.push("/auth/login");
     } catch (error) {
       toast("Failed to create account", {

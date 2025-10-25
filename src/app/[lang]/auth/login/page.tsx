@@ -27,28 +27,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Simulate successful login
-      toast("Logged in successfully!", {
-        description: new Date().toLocaleDateString("en-US", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "numeric",
-          minute: "numeric",
-          hour12: true,
-        }),
-        action: {
-          label: "Undo",
-          onClick: () => console.log("Login undone"),
-        },
-      });
-
-      // Redirect to dashboard
-      router.push("/dashboard");
+     
     } catch (error) {
       toast("Login failed", {
         description: "Invalid email or password.",
