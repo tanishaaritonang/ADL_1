@@ -30,6 +30,50 @@ The system automatically evaluates each learner’s level (*Easy*, *Medium*, *Hi
 
 ## 🚀 Core Features  
 
+🔐 Authentication & Authorization
+
+The platform implements a secure and straightforward authentication system using NextAuth.js with an email and password credential flow. This system provides seamless integration with Supabase as the primary user data source while maintaining a clean, privacy-preserving authentication experience.
+
+✉️ Login & Registration
+
+Users can register and log in using their email and password. During registration, account credentials are securely stored in Supabase with hashed passwords. Upon successful login, NextAuth manages session creation and maintains user authentication across pages using encrypted, HTTP-only cookies.
+
+🧾 User Profiles
+
+Each authenticated user is linked to a record in the profiles table within Supabase. The profile contains essential information such as email, full name, and role designation (student or instructor). This ensures consistent data management and easy synchronization between the authentication system and other platform features like quizzes, feedback, and analytics.
+
+🔄 Session Management
+
+NextAuth uses JWT-based session handling to ensure secure, persistent login sessions. Sessions remain active across the frontend and backend, allowing both client components and server API routes to recognize authenticated users without exposing sensitive information.
+
+🧭 Access Control
+
+The authentication system includes role-based access control (RBAC):
+
+Students have access to learning modules, quizzes, AI feedback, and personal analytics.
+
+Instructors have extended permissions to access class dashboards, track performance metrics, and review student progress.
+
+Protected routes enforce access restrictions automatically. Unauthenticated users are redirected to the login page, and instructors’ pages are only accessible to users with the correct role assignment.
+
+🧰 Integration with Supabase
+
+Supabase serves as the central identity and data store. NextAuth retrieves and validates user credentials directly against Supabase’s stored data. When users log in, their role and basic details are fetched to build a complete session object used across the application.
+
+🔒 Security Measures
+
+Passwords are hashed before storage to ensure data safety.
+
+Authentication sessions are protected by secure cookies to prevent unauthorized access.
+
+JWT tokens are signed with a strong secret for session validation.
+
+All API routes performing sensitive operations verify active user sessions before execution.
+
+🚪 Logout & Session Expiry
+
+Users can log out at any time, immediately invalidating their session. Inactive sessions automatically expire after a set period for added protection.
+
 ### 🧑‍🎓 Student Experience  
 - Module Selection: Choose networking topics (e.g., OSI Model, Subnetting, Routing).  
 - Pre-Test (30 Questions):  
