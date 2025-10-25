@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { signIn } from "next-auth/react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -27,31 +28,39 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Simulate successful login
-      toast("Logged in successfully!", {
-        description: new Date().toLocaleDateString("en-US", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "numeric",
-          minute: "numeric",
-          hour12: true,
-        }),
-        action: {
-          label: "Undo",
-          onClick: () => console.log("Login undone"),
-        },
+      const result = await signIn('credentials', {
+        email,
+        password,
+        mode: 'signin',
+        redirect: false,
       });
 
-      // Redirect to dashboard
-      router.push("/dashboard");
-    } catch (error) {
+      if (result?.error) {
+        toast("Login failed", {
+          description: result.error,
+          action: {
+            label: "Retry",
+            onClick: () => handleSubmit(e),
+          },
+        });
+      } else {
+        // Redirect to dashboard
+        // router.push("/dashboard");
+        toast("Logged in successfully!", {
+          description: new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "numeric",
+            minute: "numeric",
+            hour12: true,
+          }),
+        });
+      }
+    } catch (error: any) {
       toast("Login failed", {
-        description: "Invalid email or password.",
+        description: error.message || "Invalid email or password.",
         action: {
           label: "Retry",
           onClick: () => handleSubmit(e),

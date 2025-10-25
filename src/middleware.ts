@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { match } from '@formatjs/intl-localematcher';
 import Negotiator from 'negotiator';
 import { AppConfig } from './config/app-config';
@@ -12,7 +12,7 @@ function getLocale(request: Request): string {
   return match(languages, locales, defaultLocale);
 }
 
-export function middleware(request: Request) {
+export function middleware(request: NextRequest) {
   const { pathname } = new URL(request.url);
   
   // Check if the pathname already includes a supported locale
@@ -20,16 +20,20 @@ export function middleware(request: Request) {
     (locale) => pathname.startsWith(`/${locale}/`) || pathname === `/${locale}`
   );
 
-  if (pathnameHasLocale) return;
+  if (!pathnameHasLocale) {
+    // Redirect to the URL with the detected locale
+    const locale = getLocale(request);
+    const newUrl = new URL(`/${locale}${pathname}`, request.url);
+    return NextResponse.redirect(newUrl);
+  }
 
-  // Redirect to the URL with the detected locale
-  const locale = getLocale(request);
-  const newUrl = new URL(`/${locale}${pathname}`, request.url);
-  return NextResponse.redirect(newUrl);
+  // If it has a locale, continue
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    '/((?!_next|api|favicon.ico).*)', // Skip internal paths and assets
+    // Skip internal paths and assets
+    '/((?!_next|api|auth|favicon.ico).*)', 
   ],
 };

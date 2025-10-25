@@ -1,241 +1,334 @@
-# 🔐 Next.js Authentication with Supabase & NextAuth — Deep Dive (Part 2 + Role-Based Access)
+# 🧩 NextAuth + Supabase + Next.js Example
 
-> Complete authentication and authorization setup using **Next.js**, **NextAuth**, and **Supabase**, with **role-based protection** and **middleware filtering**.
-
----
-
-## 📘 Overview
-
-This guide expands on the original tutorial by [Sidharrth Mahadevan](https://medium.com/@sidharrthnix/next-js-authentication-with-supabase-and-nextauth-a-deep-dive-part-2-5fa43563989a), adding:
-- Email/password sign-up, sign-in, and sign-out  
-- Route protection using middleware  
-- **Role-based authentication** (admin, user, etc.)  
-- **Middleware filtering** based on roles  
-
-By the end, you’ll have a fully working authentication + authorization system for your Next.js app.
+This README contains all the code from the guide  
+**“Simplifying Next.js Authentication and Internationalization with NextAuth and NextIntl.”**
 
 ---
 
-## 🏗️ Folder Structure
-
-```
-app/
-├── api/
-│   └── auth/
-│       └── [...nextauth]/
-│           └── route.ts
-├── (protected)/
-│   ├── dashboard/
-│   ├── admin/
-│   └── profile/
-├── auth/
-│   ├── signin/
-│   ├── signup/
-│   └── error/
-middleware.ts
-.env.local
-```
-
----
-
-## ⚙️ Setup
-
-### 1️⃣ Environment Variables
-
-Add these to your `.env.local`:
-
-```bash
-NEXTAUTH_URL=http://localhost:3000
-AUTH_SECRET=your_random_secret
-
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_anon_key
-```
-
----
-
-### 2️⃣ Supabase Table Setup
-
-In Supabase, update your `profiles` table to include a **role** column:
-
-| Column | Type | Default | Description |
-|--------|------|----------|-------------|
-| id | uuid | `auth.uid()` | User ID (linked to auth) |
-| email | text |  | User email |
-| role | text | `'user'` | `'user'`, `'admin'`, `'moderator'`, etc. |
-
----
-
-## 🧩 NextAuth Configuration (`route.ts`)
+## 'route.ts'
 
 ```ts
-import NextAuth, { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
-import { createClient } from "@supabase/supabase-js";
+import NextAuth, { NextAuthOptions } from 'next-auth';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import { config } from '@client/lib/env';
+import { supabase } from '@client/lib/supabaseClient';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_KEY!
-);
+interface CustomUser {
+  id: string;
+  email: string;
+  name: string;
+}
 
+interface CustomSession {
+  user: {
+    id: string;
+    email: string;
+  };
+  expires: string;
+}
+
+// ----------------- Auth Handlers -----------------
+const authHandlers = {
+  async handleSignup(email: string, password: string) {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${config.NEXTAUTH_URL}`,
+      },
+    });
+
+    if (error) {
+      console.error('[AUTH] Signup error:', error);
+      throw new Error(error.message);
+    }
+
+    if (!data.user?.id) {
+      throw new Error('Signup successful. Please check your email for confirmation.');
+    }
+
+    return data.user;
+  },
+
+  async handleSignIn(email: string, password: string) {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('[AUTH] Signin error:', error);
+      throw new Error(error.message);
+    }
+
+    if (!data.user?.id) {
+      throw new Error('Invalid credentials');
+    }
+
+    return data.user;
+  },
+
+  async handleResetPassword(email: string) {
+    // We'll implement this in Part 3
+  },
+};
+
+// ----------------- NextAuth Options -----------------
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  session: {
+    strategy: 'jwt',
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
   providers: [
     CredentialsProvider({
-      name: "credentials",
+      name: 'credentials',
       credentials: {
-        email: { label: "Email", type: "text" },
-        password: { label: "Password", type: "password" },
-        mode: { label: "Mode", type: "text" },
+        email: { label: 'Email', type: 'email', placeholder: 'Enter your email' },
+        password: { label: 'Password', type: 'password', placeholder: 'Enter your password' },
+        mode: { label: 'Mode', type: 'text', placeholder: 'signin, signup, or resetpassword' },
       },
-      async authorize(credentials) {
-        const { email, password, mode } = credentials!;
-        let user;
+      async authorize(credentials): Promise<CustomUser | null> {
+        try {
+          const { email, password, mode } = credentials;
+          const lowerMode = mode?.toLowerCase();
 
-        if (mode === "signup") {
-          const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-            options: { data: { role: "user" } },
+          if (!email && !password) {
+            throw new Error('Password is required for signin or signup');
+          }
+
+          const user =
+            lowerMode === 'signup'
+              ? await authHandlers.handleSignup(email, password)
+              : await authHandlers.handleSignIn(email, password);
+
+          return {
+            id: user.id,
+            email: user.email ?? email,
+            name: user.email ?? email,
+          };
+        } catch (error) {
+          console.error('[AUTH] Authorization error:', {
+            error,
+            email: credentials?.email,
+            mode: credentials?.mode,
+            timestamp: new Date().toISOString(),
           });
-          if (error) throw error;
-          user = data.user;
-        } else {
-          const { data, error } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-          if (error) throw error;
-          user = data.user;
+          throw error;
         }
-
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", user?.id)
-          .single();
-
-        return { id: user?.id, email: user?.email, role: profile?.role || "user" };
       },
     }),
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.role = user.role;
+      if (user) {
+        token.userId = user.id;
+        token.email = user.email;
+        token.lastUpdated = new Date().toISOString();
+      }
       return token;
     },
-    async session({ session, token }) {
-      session.user.role = token.role;
-      return session;
+    async session({ session, token }): Promise<CustomSession> {
+      return {
+        ...session,
+        user: {
+          id: token.userId as string,
+          email: token.email as string,
+        },
+      };
     },
   },
   pages: {
-    signIn: "/auth/signin",
-    error: "/auth/error",
+    signIn: '/auth/signin',
+    error: '/auth/error',
   },
-  secret: process.env.AUTH_SECRET,
-};
-
-const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST };
-```
-
----
-
-## 🧠 Role-Based Middleware (`middleware.ts`)
-
-```ts
-import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
-
-export default withAuth(
-  async function middleware(req) {
-    const { token } = req.nextauth;
-    const pathname = req.nextUrl.pathname;
-
-    const roleRules = {
-      "/admin": ["admin"],
-      "/dashboard": ["admin", "user"],
-    };
-
-    for (const [path, roles] of Object.entries(roleRules)) {
-      if (pathname.startsWith(path)) {
-        if (!roles.includes(token?.role)) {
-          return NextResponse.redirect(new URL("/auth/error?reason=forbidden", req.url));
-        }
-      }
-    }
-
-    return NextResponse.next();
-  },
-  {
-    callbacks: {
-      authorized: ({ token }) => !!token,
+  events: {
+    async signIn({ user }) {
+      console.log('[AUTH] Successful sign-in:', {
+        userId: user.id,
+        email: user.email,
+        timestamp: new Date().toISOString(),
+      });
     },
-  }
-);
-
-export const config = {
-  matcher: ["/dashboard/:path*", "/admin/:path*", "/profile/:path*"],
+    async signOut({ token }) {
+      if (token?.userId) {
+        await supabase.auth.signOut();
+      }
+    },
+  },
+  secret: config.AUTH_SECRET,
+  debug: process.env.NODE_ENV === 'development',
 };
-```
 
----
+// ----------------- Handlers -----------------
+const handleAuth = async (req: Request, res: Response) => {
+  try {
+    return await NextAuth(authOptions)(req, res);
+  } catch (error) {
+    console.error('[AUTH] Unexpected error:', error);
+    throw error;
+  }
+};
 
-## 🧭 Example Usage
+export const GET = handleAuth;
+export const POST = handleAuth;
+'RegisterPage.tsx'
+tsx
+Copy code
+'use client';
 
-```tsx
-"use client";
+import { signIn } from 'next-auth/react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-import { useSession } from "next-auth/react";
+export default function RegisterPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-export default function DashboardPage() {
-  const { data: session } = useSession();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        mode: 'signup',
+        redirect: false,
+      });
 
-  if (!session) return <p>Loading...</p>;
-  const role = session.user.role;
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        router.push('/');
+      }
+    } catch (err) {
+      setError('An unexpected error occurred 😥');
+    }
+  };
 
   return (
-    <div>
-      <h1>Welcome, {session.user.email}</h1>
-      {role === "admin" && <button>Manage Users</button>}
-      {role === "user" && <p>You have basic user access.</p>}
-    </div>
+    <form onSubmit={handleSubmit}>
+      <h2>Create an Account</h2>
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+      />
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+      <button type="submit">Sign Up</button>
+    </form>
   );
 }
-```
+'SignInPage.tsx'
+tsx
+Copy code
+'use client';
 
----
+import { signIn } from 'next-auth/react';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-## 🔒 Testing Scenarios
+export default function SignInPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
-| Test | Expected Behavior |
-|------|--------------------|
-| Sign up new user | Creates a Supabase user + default role `user` |
-| Sign in as admin | Access `/admin` successfully |
-| Sign in as user | Redirected if visiting `/admin`, but `/dashboard` works |
-| Sign out | Both Supabase & NextAuth sessions cleared |
-| Visit `/dashboard` unauthenticated | Redirects to `/auth/signin` |
-| Visit `/admin` as user | Redirects to `/auth/error?reason=forbidden` |
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const result = await signIn('credentials', {
+        email,
+        password,
+        mode: 'signin',
+        redirect: false,
+      });
 
----
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        router.push('/');
+      }
+    } catch (err) {
+      setError('Unexpected error occurred 🤕');
+    }
+  };
 
-## 🧰 Tips & Best Practices
+  return (
+    <form onSubmit={handleSubmit}>
+      <h2>Sign In</h2>
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+      />
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+      <button type="submit">Sign In</button>
+    </form>
+  );
+}
+'SignOutButton.tsx'
+tsx
+Copy code
+'use client';
 
-- Fetch user roles from Supabase’s `profiles` table.
-- Embed roles in JWT tokens for stateless performance.
-- Centralize access rules in middleware for flexibility.
-- Use environment variables safely in different stages.
-- Test both client and server flows thoroughly.
+import { signOut } from 'next-auth/react';
 
----
+export function SignOutButton() {
+  const handleSignOut = async () => {
+    await signOut({ callbackUrl: '/auth/signin' });
+  };
 
-## 🧾 Summary
+  return <button onClick={handleSignOut}>Sign Out</button>;
+}
+'middleware.ts'
+ts
+Copy code
+import { withAuth } from 'next-auth/middleware';
 
-This setup combines **NextAuth** and **Supabase** into a secure and flexible authentication system supporting:
-- Email/password login
-- Role-based access control
-- Middleware-based route filtering
-- JWT session management
+export default withAuth({
+  pages: {
+    signIn: '/auth/signin',
+  },
+});
 
-You now have a **production-ready authentication and authorization** layer for any Next.js project.
+export const config = {
+  matcher: ['/protected/:path*'],
+};
+'ProtectedPage.tsx'
+tsx
+Copy code
+'use client';
+
+import { useSession } from 'next-auth/react';
+
+export default function ProtectedPage() {
+  const { data: session, status } = useSession({
+    required: true,
+    onUnauthenticated: () => '/auth/signin',
+  });
+
+  if (status === 'loading') {
+    return <p>Loading...</p>;
+  }
+
+  return <p>Welcome, {session?.user?.email}!</p>;
+}

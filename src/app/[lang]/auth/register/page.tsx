@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { signIn } from "next-auth/react";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -23,6 +24,7 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -44,31 +46,39 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Simulate successful registration
-      toast("Account created successfully!", {
-        description: new Date().toLocaleDateString("en-US", {
-          weekday: "long",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "numeric",
-          minute: "numeric",
-          hour12: true,
-        }),
-        action: {
-          label: "Undo",
-          onClick: () => console.log("Account creation undone"),
-        },
+      const result = await signIn('credentials', {
+        email,
+        password,
+        mode: 'signup',
+        redirect: false,
       });
 
-      // Redirect to login
-      router.push("/auth/login");
-    } catch (error) {
+      if (result?.error) {
+        toast("Failed to create account", {
+          description: result.error,
+          action: {
+            label: "Retry",
+            onClick: () => handleSubmit(e),
+          },
+        });
+      } else {
+        // Redirect to login
+        router.push("/[lang]/auth/login");
+        toast("Account created successfully!", {
+          description: new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+            hour: "numeric",
+            minute: "numeric",
+            hour12: true,
+          }),
+        });
+      }
+    } catch (error: any) {
       toast("Failed to create account", {
-        description: "Please try again later.",
+        description: error.message || "Please try again later.",
         action: {
           label: "Retry",
           onClick: () => handleSubmit(e),
